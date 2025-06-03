@@ -2,24 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dms_frontend/screens/auth/main_login.dart';
 import 'dart:convert';
-import 'package:dms_frontend/models/list/document_master_list.dart';
-import 'package:dms_frontend/screens/documents/document_master_detail.dart';
+import 'package:dms_frontend/models/list/documents_list.dart';
+import 'package:dms_frontend/screens/documents/documents_detail.dart';
 import 'package:dms_frontend/widgets/common_app_bar.dart';
 import 'package:dms_frontend/widgets/common_drawer.dart';
 import 'package:dms_frontend/widgets/common_pagination.dart';
 import 'package:dms_frontend/services/api_service.dart';
 
-class DocumentMasterListScreen extends StatefulWidget {
-  const DocumentMasterListScreen({super.key});
+class DocumentsListScreen extends StatefulWidget {
+  const DocumentsListScreen({super.key});
 
   @override
-  State<DocumentMasterListScreen> createState() => _DocumentMasterListScreenState();
+  State<DocumentsListScreen> createState() => _DocumentsListScreenState();
 }
 
-class _DocumentMasterListScreenState extends State<DocumentMasterListScreen> {
+class _DocumentsListScreenState extends State<DocumentsListScreen> {
+
   // TextEditingControllers for each search field
   final TextEditingController _idSearchController = TextEditingController();
+  final TextEditingController _envIdSearchController = TextEditingController();
   final TextEditingController _typeSearchController = TextEditingController();
+  final TextEditingController _parentIdSearchController = TextEditingController();
+  final TextEditingController _refIdSearchController = TextEditingController();
   final TextEditingController _moduleIdSearchController = TextEditingController();
   final TextEditingController _statusSearchController = TextEditingController();
   final TextEditingController _createdAtSearchController = TextEditingController();
@@ -28,7 +32,7 @@ class _DocumentMasterListScreenState extends State<DocumentMasterListScreen> {
   // Pagination State Variables
   int _currentPage = 1;
   final int _itemsPerPage = 5;
-  List<DocumentMaster> _displayedDocuments = [];
+  List<Document> _displayedDocuments = [];
 
   // API related state variables
   bool _isLoading = false;
@@ -45,7 +49,10 @@ class _DocumentMasterListScreenState extends State<DocumentMasterListScreen> {
   @override
   void dispose() {
     _idSearchController.dispose();
+    _envIdSearchController.dispose();
     _typeSearchController.dispose();
+    _parentIdSearchController.dispose();
+    _refIdSearchController.dispose();
     _moduleIdSearchController.dispose();
     _statusSearchController.dispose();
     _createdAtSearchController.dispose();
@@ -58,7 +65,7 @@ class _DocumentMasterListScreenState extends State<DocumentMasterListScreen> {
     return prefs.getString('authToken');
   }
 
-  Future<void> _fetchDocumentMastersFromApi() async {
+  Future<void> _fetchDocumentsFromApi() async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -79,21 +86,28 @@ class _DocumentMasterListScreenState extends State<DocumentMasterListScreen> {
     }
 
     try {
-      final response = await ApiService.instance.getDocumentMasterList(
+      // Create filters map for the API service
+      final Map<String, dynamic> filters = {};
+      if (_idSearchController.text.isNotEmpty) filters['id'] = _idSearchController.text;
+      if (_envIdSearchController.text.isNotEmpty) filters['env_id'] = _envIdSearchController.text;
+      if (_typeSearchController.text.isNotEmpty) filters['type'] = _typeSearchController.text;
+      if (_parentIdSearchController.text.isNotEmpty) filters['parent_id'] = _parentIdSearchController.text;
+      if (_refIdSearchController.text.isNotEmpty) filters['ref_id'] = _refIdSearchController.text;
+      if (_moduleIdSearchController.text.isNotEmpty) filters['module_id'] = _moduleIdSearchController.text;
+      if (_statusSearchController.text.isNotEmpty) filters['status'] = _statusSearchController.text;
+      if (_createdAtSearchController.text.isNotEmpty) filters['created_at'] = _createdAtSearchController.text;
+      if (_updatedAtSearchController.text.isNotEmpty) filters['updated_at'] = _updatedAtSearchController.text;
+
+      final response = await ApiService.instance.getUploadedFilesList(
         page: _currentPage,
         limit: _itemsPerPage,
-        id: _idSearchController.text.isNotEmpty ? _idSearchController.text : null,
-        type: _typeSearchController.text.isNotEmpty ? _typeSearchController.text : null,
-        moduleId: _moduleIdSearchController.text.isNotEmpty ? _moduleIdSearchController.text : null,
-        status: _statusSearchController.text.isNotEmpty ? _statusSearchController.text : null,
-        createdAt: _createdAtSearchController.text.isNotEmpty ? _createdAtSearchController.text : null,
-        updatedAt: _updatedAtSearchController.text.isNotEmpty ? _updatedAtSearchController.text : null,
+        filters: filters.isNotEmpty ? filters : null,
       );
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
         final List<dynamic> documentDataList = responseData['data'];
-        final List<DocumentMaster> fetchedDocuments = documentDataList.map((json) => DocumentMaster.fromJson(json)).toList();
+        final List<Document> fetchedDocuments = documentDataList.map((json) => Document.fromJson(json)).toList();
 
         setState(() {
           _displayedDocuments = fetchedDocuments;
@@ -113,7 +127,7 @@ class _DocumentMasterListScreenState extends State<DocumentMasterListScreen> {
       } else {
         final errorData = jsonDecode(response.body);
         setState(() {
-          _errorMessage = 'Failed to load document masters: ${errorData['error'] ?? response.statusCode}';
+          _errorMessage = 'Failed to load documents: ${errorData['error'] ?? response.statusCode}';
           _isLoading = false;
           _displayedDocuments = [];
           _totalItems = 0;
@@ -133,14 +147,14 @@ class _DocumentMasterListScreenState extends State<DocumentMasterListScreen> {
 
   void _applySearchFilters() {
     _currentPage = 1;
-    _fetchDocumentMastersFromApi();
+    _fetchDocumentsFromApi();
   }
 
   void _goToFirstPage() {
     if (_currentPage > 1) {
       setState(() {
         _currentPage = 1;
-        _fetchDocumentMastersFromApi();
+        _fetchDocumentsFromApi();
       });
     }
   }
@@ -149,7 +163,7 @@ class _DocumentMasterListScreenState extends State<DocumentMasterListScreen> {
     if (_currentPage > 1) {
       setState(() {
         _currentPage--;
-        _fetchDocumentMastersFromApi();
+        _fetchDocumentsFromApi();
       });
     }
   }
@@ -158,7 +172,7 @@ class _DocumentMasterListScreenState extends State<DocumentMasterListScreen> {
     if (_currentPage < _totalPages) {
       setState(() {
         _currentPage++;
-        _fetchDocumentMastersFromApi();
+        _fetchDocumentsFromApi();
       });
     }
   }
@@ -167,7 +181,7 @@ class _DocumentMasterListScreenState extends State<DocumentMasterListScreen> {
     if (_currentPage < _totalPages) {
       setState(() {
         _currentPage = _totalPages;
-        _fetchDocumentMastersFromApi();
+        _fetchDocumentsFromApi();
       });
     }
   }
@@ -176,7 +190,7 @@ class _DocumentMasterListScreenState extends State<DocumentMasterListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: const CommonAppBar(),
-      drawer: const CommonDrawer(selectedSection: DrawerSection.documentMaster),
+      drawer: const CommonDrawer(selectedSection: DrawerSection.uploadedFiles),
       backgroundColor: Colors.grey[50],
       body: LayoutBuilder(
         builder: (context, constraints) {
@@ -189,7 +203,7 @@ class _DocumentMasterListScreenState extends State<DocumentMasterListScreen> {
                     Padding(
                       padding: const EdgeInsets.all(24.0),
                       child: Text(
-                        'Document Master',
+                        'Documents',
                         style: TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
@@ -219,7 +233,7 @@ class _DocumentMasterListScreenState extends State<DocumentMasterListScreen> {
                       )
                     else
                       Expanded(
-                        child: _buildDocumentMasterTable(),
+                        child: _buildDocumentsTable(),
                       ),
                   ],
                 ),
@@ -231,7 +245,7 @@ class _DocumentMasterListScreenState extends State<DocumentMasterListScreen> {
     );
   }
 
-  Widget _buildDocumentMasterTable() {
+  Widget _buildDocumentsTable() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24.0),
       child: Column(
@@ -240,7 +254,7 @@ class _DocumentMasterListScreenState extends State<DocumentMasterListScreen> {
           Padding(
             padding: const EdgeInsets.only(bottom: 8.0),
             child: Text(
-              '$_totalItems Document Masters',
+              '$_totalItems Documents',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
@@ -294,10 +308,52 @@ class _DocumentMasterListScreenState extends State<DocumentMasterListScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            const Text('Env ID'),
+                            const SizedBox(height: 5),
+                            _buildSearchTextField(
+                              _envIdSearchController,
+                              width: 80,
+                            ),
+                          ],
+                        ),
+                      ),
+                      DataColumn(
+                        label: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             const Text('Type'),
                             const SizedBox(height: 5),
                             _buildSearchTextField(
                               _typeSearchController,
+                              width: 100,
+                            ),
+                          ],
+                        ),
+                      ),
+                      DataColumn(
+                        label: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Parent ID'),
+                            const SizedBox(height: 5),
+                            _buildSearchTextField(
+                              _parentIdSearchController,
+                              width: 120,
+                            ),
+                          ],
+                        ),
+                      ),
+                      DataColumn(
+                        label: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Ref ID'),
+                            const SizedBox(height: 5),
+                            _buildSearchTextField(
+                              _refIdSearchController,
                               width: 120,
                             ),
                           ],
@@ -326,7 +382,7 @@ class _DocumentMasterListScreenState extends State<DocumentMasterListScreen> {
                             const SizedBox(height: 5),
                             _buildSearchTextField(
                               _statusSearchController,
-                              width: 120,
+                              width: 100,
                             ),
                           ],
                         ),
@@ -393,26 +449,12 @@ class _DocumentMasterListScreenState extends State<DocumentMasterListScreen> {
                       return DataRow(
                         cells: [
                           DataCell(Text(document.id?.toString() ?? 'N/A')),
+                          DataCell(Text(document.envId?.toString() ?? 'N/A')),
                           DataCell(Text(document.type ?? 'N/A')),
+                          DataCell(Text(document.parentId ?? 'N/A')),
+                          DataCell(Text(document.refId ?? 'N/A')),
                           DataCell(Text(document.moduleId?.toString() ?? 'N/A')),
-                          DataCell(
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: document.status == 'active'
-                                    ? Colors.green.withValues(alpha: 0.1)
-                                    : Colors.red.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(5),
-                              ),
-                              child: Text(
-                                document.status ?? 'N/A',
-                                style: TextStyle(
-                                  color: document.status == 'active' ? Colors.green : Colors.red,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                          ),
+                          DataCell(Text(document.status ?? 'N/A')),
                           DataCell(
                             Text(
                               document.createdAt?.toLocal().toString().split(' ')[0] ?? 'N/A',
@@ -434,7 +476,7 @@ class _DocumentMasterListScreenState extends State<DocumentMasterListScreen> {
                                   onPressed: () {
                                     Navigator.of(context).push(
                                       MaterialPageRoute(
-                                        builder: (context) => DocumentMasterDetailsPage(documentMasterId: document.id!),
+                                        builder: (context) => UploadedFileDetailsPage(fileId: document.id!),
                                       ),
                                     );
                                   },

@@ -4,8 +4,8 @@ import 'package:dms_frontend/screens/auth/main_login.dart';
 import 'package:dms_frontend/screens/users/users_list.dart';
 import 'package:dms_frontend/screens/access_logs/access_logs_list.dart';
 import 'package:dms_frontend/screens/app_config/app_config_list.dart';
-import 'package:dms_frontend/screens/documents/document_master_list.dart';
-import 'package:dms_frontend/screens/files/documents_list.dart';
+import 'package:dms_frontend/screens/document_master/document_master_list.dart';
+import 'package:dms_frontend/screens/documents/documents_list.dart';
 
 enum DrawerSection {
   dashboard,
