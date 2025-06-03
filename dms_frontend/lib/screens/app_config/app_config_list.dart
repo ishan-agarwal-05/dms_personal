@@ -17,7 +17,6 @@ class AppConfigListScreen extends StatefulWidget {
 }
 
 class _AppConfigListScreenState extends State<AppConfigListScreen> {
-  bool _isDocumentManagementExpanded = true;
 
   // TextEditingControllers for each search field
   final TextEditingController _idSearchController = TextEditingController();
