@@ -1,10 +1,7 @@
 from flask import Blueprint, jsonify
 from flask_jwt_extended import jwt_required
-from services.delete_services import delete_document_service
-from services.list_services import list_documents_service
-from services.upload_services import handle_file_upload
-from services.access_log_service import log_api_operation
-from utils.request_utils import get_request_context, parse_request_data
+from app.services.document_services import delete_document_service, list_documents_service, handle_file_upload, log_api_operation
+from app.utils.request_utils import get_request_context, parse_request_data
 
 document_api_bp = Blueprint('document_routes', __name__) # Updated Blueprint name for consistency
 
