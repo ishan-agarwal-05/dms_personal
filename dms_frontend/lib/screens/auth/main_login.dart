@@ -2,10 +2,10 @@
 // ignore_for_file: avoid_print
 
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert'; // Required for jsonEncode and jsonDecode
-import 'package:ui_for_user_list/user_list_main.dart'; // Import UserManagementScreen from the other project/package
-import 'package:shared_preferences/shared_preferences.dart'; // For storing user session
+import 'dart:convert';
+import 'package:dms_frontend/screens/users/users_list.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:dms_frontend/services/api_service.dart';
 
 void main() {
   runApp(const MyApp());
@@ -100,21 +100,9 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = true; // Show loading indicator
     });
 
-    // Your actual backend login API endpoint
-    const String apiUrl =
-        'http://127.0.0.1:5000/auth/login'; // Ensure this is correct for your Flask login API
-
     try {
-      final response = await http.post(
-        Uri.parse(apiUrl),
-        headers: <String, String>{
-          'Content-Type': 'application/json; charset=UTF-8',
-        },
-        body: jsonEncode(<String, String>{
-          'username': username,
-          'password': password,
-        }),
-      );
+      // Use the centralized API service for login
+      final response = await ApiService.instance.login(username, password);
 
       if (response.statusCode == 200) {
         // Login successful

@@ -1,5 +1,5 @@
 
-class Uploadedfile {
+class DocumentDetail {
   final int? id;
   final int? envId;
   final String? parentId; // varchar(100), Nullable YES
@@ -21,7 +21,7 @@ class Uploadedfile {
   // Note: 'updatedBy' and 'deleted' columns were not in the provided schema (image_f6235c.png)
   // so they are removed from this model.
 
-  Uploadedfile({
+  DocumentDetail({
     this.id,
     this.envId,
     this.parentId,
@@ -41,8 +41,8 @@ class Uploadedfile {
     this.createdBy,
   });
 
-  factory Uploadedfile.fromJson(Map<String, dynamic> json) {
-    return Uploadedfile(
+  factory DocumentDetail.fromJson(Map<String, dynamic> json) {
+    return DocumentDetail(
       id: json['id'] as int?,
       envId: json['env_id'] as int?,
       parentId: json['parent_id'] as String?,

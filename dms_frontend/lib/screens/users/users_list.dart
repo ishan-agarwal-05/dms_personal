@@ -1,19 +1,14 @@
-// ui_for_user_list/lib/user_list_main.dart
-
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:ui_for_user_list/main_login.dart';
+import 'package:dms_frontend/screens/auth/main_login.dart';
 import 'dart:convert';
-import 'package:ui_for_user_list/models/user_list.dart'; // Add this import (adjust path)
-
-// Import other management screens
-import 'package:ui_for_user_list/access_log_main.dart';
-import 'package:ui_for_user_list/app_config_main.dart';
-import 'package:ui_for_user_list/document_master_main.dart';
-import 'package:ui_for_user_list/upload_files_main.dart';
-
-import 'package:ui_for_user_list/models/user_detail_screen.dart';
+import 'package:dms_frontend/models/list/user_list.dart';
+import 'package:dms_frontend/screens/users/users_detail.dart';
+import 'package:dms_frontend/widgets/common_app_bar.dart';
+import 'package:dms_frontend/widgets/common_drawer.dart';
+import 'package:dms_frontend/widgets/common_pagination.dart';
+import 'package:dms_frontend/widgets/common_search_field.dart';
+import 'package:dms_frontend/services/api_service.dart';
 
 class UserManagementScreen extends StatefulWidget {
   const UserManagementScreen({super.key});
@@ -23,7 +18,6 @@ class UserManagementScreen extends StatefulWidget {
 }
 
 class _UserManagementScreenState extends State<UserManagementScreen> {
-  bool _isDocumentManagementExpanded = true; // Keep expanded for initial view
   String? _selectedStatus;
 
   // TextEditingControllers for each search field
@@ -71,50 +65,40 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     return prefs.getString('authToken');
   }
 
-  // NEW: Method to fetch data from your Flask API
+  // Method to fetch data from API using the centralized service
   Future<void> _fetchUsersFromApi() async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
 
-  // Get the auth token first
-  final String? authToken = await getAuthToken();
-  
-  if (authToken == null) {
-    // Handle missing token
-    setState(() {
-      _errorMessage = 'Authentication token not found. Please log in again.';
-      _isLoading = false;
-    });
+    // Check if auth token exists
+    final String? authToken = await getAuthToken();
+    
+    if (authToken == null) {
+      setState(() {
+        _errorMessage = 'Authentication token not found. Please log in again.';
+        _isLoading = false;
+      });
 
-    Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
-    return;
-  }
-
-    // Replace with your actual API URL
-    const String apiUrl =
-        'http://127.0.0.1:5000/admin/users/list'; // Adjust if your Flask server runs on a different IP/port
+      if (mounted) {
+        Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
+      }
+      return;
+    }
 
     try {
-      final response = await http.post(
-        Uri.parse(apiUrl),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $authToken',
-          },
-        body: jsonEncode({
-          'page': _currentPage,
-          'limit': _itemsPerPage,
-          // Send specific search parameters from your text controllers
-          'id': _idSearchController.text,
-          'username': _usernameSearchController.text,
-          'first_name': _firstNameSearchController.text,
-          'last_name': _lastNameSearchController.text,
-          'email': _emailSearchController.text,
-          'mobile': _mobileSearchController.text,
-          'status': _selectedStatus, // Send null if no status is selected
-        }),
+      // Use the centralized API service
+      final response = await ApiService.instance.getUsersList(
+        page: _currentPage,
+        limit: _itemsPerPage,
+        id: _idSearchController.text.isNotEmpty ? _idSearchController.text : null,
+        username: _usernameSearchController.text.isNotEmpty ? _usernameSearchController.text : null,
+        firstName: _firstNameSearchController.text.isNotEmpty ? _firstNameSearchController.text : null,
+        lastName: _lastNameSearchController.text.isNotEmpty ? _lastNameSearchController.text : null,
+        email: _emailSearchController.text.isNotEmpty ? _emailSearchController.text : null,
+        mobile: _mobileSearchController.text.isNotEmpty ? _mobileSearchController.text : null,
+        status: _selectedStatus,
       );
 
       if (response.statusCode == 200) {
@@ -138,7 +122,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           _isLoading = false;
         });
 
-        Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
+        if (mounted) {
+      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
+    }
     
       } else {
         // Handle API errors
@@ -211,17 +197,17 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: _buildAppBar(),
-      drawer: _buildDrawer(context),
+      appBar: const CommonAppBar(),
+      drawer: const CommonDrawer(selectedSection: DrawerSection.users),
+      backgroundColor: Colors.grey[50],
       body: LayoutBuilder(
         builder: (context, constraints) {
           return Row(
             children: [
-              if (constraints.maxWidth > 800)
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                       Padding(
                         padding: const EdgeInsets.all(24.0),
                         child: Text(
@@ -255,8 +241,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                         Expanded(
                           child: _buildUserTable(),
                         ),
-                      _buildPagination(),
-                      _buildCopyright(),
                     ],
                   ),
                 ),
@@ -269,11 +253,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
   // --- Build User Table (Minor Adjustments for User Model) ---
   Widget _buildUserTable() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    return Center(
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 1400),
+        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
           Padding(
             padding: const EdgeInsets.only(bottom: 8.0),
             child: Text(
@@ -296,7 +282,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.grey.withOpacity(0.2), // Fixed withValues
+                        color: Colors.grey.withValues(alpha: 0.2),
                         spreadRadius: 1,
                         blurRadius: 5,
                         offset: const Offset(0, 3),
@@ -319,8 +305,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           children: [
                             const Text('ID'),
                             const SizedBox(height: 5),
-                            _buildSearchTextField(_idSearchController,
-                                width: 50),
+                            CommonSearchField(
+                              controller: _idSearchController,
+                              width: 50,
+                              onSubmitted: _applySearchFilters,
+                            ),
                           ],
                         ),
                       ),
@@ -331,8 +320,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           children: [
                             const Text('Username'),
                             const SizedBox(height: 5),
-                            _buildSearchTextField(_usernameSearchController,
-                                width: 120),
+                            CommonSearchField(
+                              controller: _usernameSearchController,
+                              width: 120,
+                              onSubmitted: _applySearchFilters,
+                            ),
                           ],
                         ),
                       ),
@@ -343,8 +335,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           children: [
                             const Text('First Name'),
                             const SizedBox(height: 5),
-                            _buildSearchTextField(_firstNameSearchController,
-                                width: 120),
+                            CommonSearchField(
+                              controller: _firstNameSearchController,
+                              width: 120,
+                              onSubmitted: _applySearchFilters,
+                            ),
                           ],
                         ),
                       ),
@@ -355,8 +350,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           children: [
                             const Text('Last Name'),
                             const SizedBox(height: 5),
-                            _buildSearchTextField(_lastNameSearchController,
-                                width: 120),
+                            CommonSearchField(
+                              controller: _lastNameSearchController,
+                              width: 120,
+                              onSubmitted: _applySearchFilters,
+                            ),
                           ],
                         ),
                       ),
@@ -367,8 +365,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           children: [
                             const Text('Email ID'),
                             const SizedBox(height: 5),
-                            _buildSearchTextField(_emailSearchController,
-                                width: 180),
+                            CommonSearchField(
+                              controller: _emailSearchController,
+                              width: 180,
+                              onSubmitted: _applySearchFilters,
+                            ),
                           ],
                         ),
                       ),
@@ -379,8 +380,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           children: [
                             const Text('Mobile No.'),
                             const SizedBox(height: 5),
-                            _buildSearchTextField(_mobileSearchController,
-                                width: 120),
+                            CommonSearchField(
+                              controller: _mobileSearchController,
+                              width: 120,
+                              onSubmitted: _applySearchFilters,
+                            ),
                           ],
                         ),
                       ),
@@ -470,10 +474,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                   horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
                                 color: user.status == 'Active'
-                                    ? Colors.green
-                                        .withOpacity(0.1) // Fixed withValues
-                                    : Colors.red
-                                        .withOpacity(0.1), // Fixed withValues
+                                    ? Colors.green.withValues(alpha: 0.1)
+                                    : Colors.red.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(5),
                               ),
                               child: Text(
@@ -515,322 +517,21 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  // --- Pagination Widget (Adjusted to use _totalItems and _totalPages) ---
-  Widget _buildPagination() {
-    final int startIndex = (_currentPage - 1) * _itemsPerPage + 1;
-    int endIndex = startIndex + _itemsPerPage - 1;
-    if (endIndex > _totalItems) {
-      // Use _totalItems from API
-      endIndex = _totalItems;
-    }
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          Text(
-            'Items per page: $_itemsPerPage',
-            style: TextStyle(color: Colors.grey[600]),
-          ),
-          const SizedBox(width: 20),
-          Text(
-            '$startIndex-$endIndex of $_totalItems', // Use _totalItems from API
-            style: TextStyle(color: Colors.grey[600]),
-          ),
-          const SizedBox(width: 20),
-          Row(
-            children: [
-              IconButton(
-                icon: Icon(Icons.first_page,
-                    color: _currentPage == 1
-                        ? Colors.grey[400]
-                        : Colors.grey[600]),
-                onPressed: _currentPage == 1 ? null : _goToFirstPage,
-              ),
-              IconButton(
-                icon: Icon(Icons.chevron_left,
-                    color: _currentPage == 1
-                        ? Colors.grey[400]
-                        : Colors.grey[600]),
-                onPressed: _currentPage == 1 ? null : _goToPreviousPage,
-              ),
-              IconButton(
-                icon: Icon(Icons.chevron_right,
-                    color:
-                        _currentPage == _totalPages // Use _totalPages from API
-                            ? Colors.grey[400]
-                            : Colors.grey[600]),
-                onPressed: _currentPage == _totalPages ? null : _goToNextPage,
-              ),
-              IconButton(
-                icon: Icon(Icons.last_page,
-                    color:
-                        _currentPage == _totalPages // Use _totalPages from API
-                            ? Colors.grey[400]
-                            : Colors.grey[600]),
-                onPressed: _currentPage == _totalPages ? null : _goToLastPage,
-              ),
-            ],
+          const SizedBox(height: 16),
+          CommonPagination(
+            currentPage: _currentPage,
+            totalPages: _totalPages,
+            totalItems: _totalItems,
+            itemsPerPage: _itemsPerPage,
+            onFirstPage: _goToFirstPage,
+            onPreviousPage: _goToPreviousPage,
+            onNextPage: _goToNextPage,
+            onLastPage: _goToLastPage,
           ),
         ],
-      ),
-    );
-  }
-
-  // AppBar, Drawer, and Helper Methods
-  AppBar _buildAppBar() {
-    return AppBar(
-      backgroundColor: Colors.white,
-      elevation: 0,
-      leading: Builder(
-        builder: (context) => IconButton(
-          icon: const Icon(Icons.menu, color: Colors.grey),
-          onPressed: () {
-            Scaffold.of(context).openDrawer(); // Opens the drawer
-          },
-        ),
-      ),
-      title: Row(
-        children: [
-          Image.asset(
-            "assets/images/techfour.png", // Ensure this path is correct
-            width: 30,
-            height: 30,
-            fit: BoxFit.cover,
-          ),
-          const SizedBox(width: 10),
-        ],
-      ),
-      actions: [
-        IconButton(
-          icon: Icon(Icons.notifications_none, color: Colors.grey[700]),
-          onPressed: () {
-            // Handle notifications
-          },
-        ),
-        const SizedBox(width: 10),
-        Row(
-          children: [
-            Text(
-              'Hi, Hr Admin',
-              style: TextStyle(color: Colors.grey[800], fontSize: 16),
-            ),
-            Icon(Icons.arrow_drop_down, color: Colors.grey[700]),
-          ],
-        ),
-        const SizedBox(width: 20),
-      ],
-    );
-  }
-
-  Drawer _buildDrawer(BuildContext context) {
-    return Drawer(
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: <Widget>[
-          DrawerHeader(
-            decoration: const BoxDecoration(
-              color: Color.fromARGB(
-                255,
-                221,
-                229,
-                236,
-              ), // Your existing background color
-            ),
-            child: Center(
-              child: Image.asset(
-                'assets/images/techfour.png', // <--- REPLACE WITH YOUR IMAGE PATH
-                width: 150,
-                height: 80,
-                fit: BoxFit.contain,
-              ),
-            ),
-          ),
-          _buildDrawerItem(Icons.dashboard, 'Dashboard', onTap: () {
-            // Navigate to Dashboard (if it's a separate screen, otherwise do nothing)
-            if (ModalRoute.of(context)?.settings.name != '/') {
-              // Assuming dashboard is root
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(
-                    builder: (context) => const UserManagementScreen()),
-              );
-            }
-          }),
-          ExpansionTile(
-            leading: Icon(Icons.folder_open, color: Colors.grey[700]),
-            title: Text(
-              'Document Management',
-              style: TextStyle(color: Colors.grey[700]),
-            ),
-            trailing: Icon(
-              _isDocumentManagementExpanded
-                  ? Icons.keyboard_arrow_up
-                  : Icons.keyboard_arrow_down,
-              color: Colors.grey[700],
-            ),
-            onExpansionChanged: (bool expanded) {
-              setState(() {
-                _isDocumentManagementExpanded = expanded;
-              });
-            },
-            initiallyExpanded: _isDocumentManagementExpanded,
-            children: <Widget>[
-              _buildSubDrawerItem(Icons.people, 'Users', onTap: () {
-                Navigator.of(context).pushReplacement(MaterialPageRoute(
-                    builder: (_) => const UserManagementScreen()));
-              }, isSelected: true), // Highlight current screen
-              _buildSubDrawerItem(Icons.settings, 'App Configuration',
-                  onTap: () {
-                Navigator.of(context).pushReplacement(MaterialPageRoute(
-                    builder: (_) => const AppConfigManagementScreen()));
-              }),
-              _buildSubDrawerItem(Icons.cloud_upload, 'Uploaded Files',
-                  onTap: () {
-                Navigator.of(context).pushReplacement(MaterialPageRoute(
-                    builder: (_) => const UploadedFileManagementScreen()));
-              }),
-              _buildSubDrawerItem(Icons.description, 'Document Master',
-                  onTap: () {
-                Navigator.of(context).pushReplacement(MaterialPageRoute(
-                    builder: (_) => const DocumentMasterManagementScreen()));
-              }),
-              _buildSubDrawerItem(Icons.history, 'Access Logs', onTap: () {
-                Navigator.of(context).pushReplacement(MaterialPageRoute(
-                    builder: (_) => const AccessLogsManagementScreen()));
-              }),
-            ],
-          ),
-          _buildDrawerItem(
-            Icons.logout,
-            'Logout',
-            iconColor: Colors.redAccent,
-            textColor: Colors.redAccent,
-            onTap: () async {
-              // Clear the stored token
-              final prefs = await SharedPreferences.getInstance();
-              await prefs.remove('authToken');
-
-              // Navigate to login screen
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (context) => const LoginScreen()),
-                (Route<dynamic> route) => false,
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  ListTile _buildDrawerItem(
-    IconData icon,
-    String title, {
-    bool isSelected = false,
-    Color? iconColor,
-    Color? textColor,
-    VoidCallback? onTap, // Added onTap
-  }) {
-    return ListTile(
-      leading: Icon(
-        icon,
-        color: iconColor ?? (isSelected ? Colors.blue : Colors.grey[700]),
-      ),
-      title: Text(
-        title,
-        style: TextStyle(
-          color: textColor ?? (isSelected ? Colors.blue : Colors.grey[700]),
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-        ),
-      ),
-      tileColor: isSelected
-          ? Colors.blue.withOpacity(0.1) // Fixed withValues
-          : null,
-      onTap: () {
-        if (MediaQuery.of(context).size.width < 800) {
-          Navigator.pop(context);
-        }
-        onTap?.call(); // Call the provided onTap callback
-      },
-    );
-  }
-
-  ListTile _buildSubDrawerItem(
-    IconData icon,
-    String title, {
-    bool isSelected = false,
-    VoidCallback? onTap, // Added onTap
-  }) {
-    return ListTile(
-      contentPadding: const EdgeInsets.only(left: 56.0),
-      leading: Icon(icon, color: isSelected ? Colors.blue : Colors.grey[600]),
-      title: Text(
-        title,
-        style: TextStyle(
-          color: isSelected ? Colors.blue : Colors.grey[600],
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-        ),
-      ),
-      tileColor: isSelected
-          ? Colors.blue.withOpacity(0.1) // Fixed withValues
-          : null,
-      onTap: () {
-        if (MediaQuery.of(context).size.width < 800) {
-          Navigator.pop(context);
-        }
-        onTap?.call(); // Call the provided onTap callback
-      },
-    );
-  }
-
-  Widget _buildSearchTextField(
-    TextEditingController controller, {
-    double width = 120,
-    TextAlign textAlign = TextAlign.start,
-  }) {
-    return SizedBox(
-      width: width,
-      height: 30,
-      child: TextField(
-        controller: controller,
-        textAlign: textAlign,
-        decoration: InputDecoration(
-          hintText: 'Search',
-          hintStyle: TextStyle(color: Colors.grey[400], fontSize: 13),
-          isDense: true,
-          contentPadding:
-              const EdgeInsets.symmetric(vertical: 5.0, horizontal: 0.0),
-          border: const UnderlineInputBorder(
-            borderSide: BorderSide(color: Colors.grey),
-          ),
-          enabledBorder: UnderlineInputBorder(
-            borderSide: BorderSide(color: Colors.grey.shade300),
-          ),
-          focusedBorder: UnderlineInputBorder(
-            borderSide:
-                BorderSide(color: Theme.of(context).primaryColor, width: 2.0),
-          ),
-        ),
-        onSubmitted: (_) => _applySearchFilters(),
-      ),
-    );
-  }
-
-  Widget _buildCopyright() {
-    return Align(
-      alignment: Alignment.bottomCenter,
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 16.0),
-        child: Text(
-          'Copyright © 2024 Techfour',
-          style: TextStyle(color: Colors.grey[500], fontSize: 12),
         ),
       ),
     );
   }
+
 }
